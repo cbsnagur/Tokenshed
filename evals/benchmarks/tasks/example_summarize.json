@@ -1,0 +1,12 @@
+{
+  "id": "example-summarize",
+  "repo": "local-fixture",
+  "kind": "summarize",
+  "question": "What does this file define, and what does the divide method do on b=0?",
+  "paths": ["fixtures/sample_large_file.py"],
+  "answer_key": [
+    "Defines a Calculator class",
+    "add(a, b) returns a + b",
+    "divide raises ValueError when b is 0"
+  ]
+}
