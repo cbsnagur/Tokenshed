@@ -1,0 +1,13 @@
+{
+  "name": "tokenshed",
+  "owner": {
+    "name": "Tokenshed contributors"
+  },
+  "plugins": [
+    {
+      "name": "tokenshed",
+      "source": "./",
+      "description": "Cuts Claude Code token usage by routing bulk file reads and boilerplate generation to a cheap, user-chosen OpenAI-compatible model."
+    }
+  ]
+}

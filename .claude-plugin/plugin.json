@@ -1,0 +1,13 @@
+{
+  "name": "tokenshed",
+  "displayName": "Tokenshed",
+  "version": "0.1.0",
+  "description": "Cuts Claude Code token usage by routing bulk file reads and boilerplate generation to a cheap, user-chosen OpenAI-compatible model.",
+  "author": {
+    "name": "Tokenshed contributors"
+  },
+  "homepage": "https://github.com/cbsnagur/Tokenshed",
+  "repository": "https://github.com/cbsnagur/Tokenshed",
+  "license": "MIT",
+  "keywords": ["tokens", "cost", "context", "hooks", "worker-model"]
+}
