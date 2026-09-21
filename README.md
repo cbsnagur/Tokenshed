@@ -174,8 +174,8 @@ tokenshed/
 └── evals/                  # Hook, script, and doctor test cases
 ```
 
-See [`PLAN.md`](PLAN.md) for the full build plan and [`plans/`](plans/) for
-the phase-by-phase development history.
+See [`PLAN.md`](PLAN.md) for the full build plan, phase status, and what's
+still open before a v1.0 release.
 
 ## License
 
