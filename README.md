@@ -177,6 +177,12 @@ tokenshed/
 See [`PLAN.md`](PLAN.md) for the full build plan, phase status, and what's
 still open before a v1.0 release.
 
+## Contributing
+
+Want to help? See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to get set
+up, the project's ground rules (stdlib-only, fail-open hooks, no shell
+string-building), and where to find open work.
+
 ## License
 
 MIT — see [`LICENSE`](LICENSE).
