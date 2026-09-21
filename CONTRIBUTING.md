@@ -30,6 +30,54 @@ export TOKENSHED_API_BASE=http://localhost:11434/v1
 python3 scripts/bulk_read.py --question "what does this do" --paths README.md
 ```
 
+## Running it as a real plugin locally
+
+The steps above cover the unit tests, which is enough for most changes. To
+see a change actually take effect inside a Claude Code session — the hook
+really blocking a Read, the skill really getting picked up — install your
+local checkout as a plugin instead of the published marketplace:
+
+```
+# from the tokenshed checkout
+claude plugin marketplace add "$(pwd)"
+claude plugin install tokenshed@tokenshed
+```
+
+`claude plugin marketplace add` accepts a local path, not just
+`owner/repo` — this points Claude Code at your working tree directly, so
+you don't need to push anywhere first.
+
+Then, in a shell profile or your test project's Claude Code local settings
+(never a committed file — see Security below), set at least:
+
+```
+export TOKENSHED_MODEL=qwen2.5-coder:7b
+export TOKENSHED_API_BASE=http://localhost:11434/v1
+```
+
+(or point at a real hosted provider — see the README's provider table).
+
+Start a **new** Claude Code session in any project directory and verify:
+
+- `/tokenshed:doctor` reports `[PASS]` on config and worker reachability.
+- Asking Claude to read a file over 350 lines gets blocked with the
+  bulk-read suggestion, not a normal file dump.
+- `cat` on the same file directly in Bash gets blocked the same way.
+
+### Iterating
+
+Because the marketplace points at your working tree, edits to `scripts/`
+and `skills/` take effect on the next call/session with no reinstall step.
+Changes to `hooks/hooks.json` itself (adding/removing a hook registration,
+not editing a hook's body) need a new Claude Code session to be picked up.
+
+### Cleaning up
+
+```
+claude plugin uninstall tokenshed@tokenshed
+claude plugin marketplace remove tokenshed
+```
+
 ## Where to find work
 
 `PLAN.md`'s **Open items before v1.0 release** and **Later (v1.x and v2)**
