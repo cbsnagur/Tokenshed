@@ -40,6 +40,19 @@ def _make_handler():
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(response)
+            elif _Behavior.mode == "with_usage":
+                payload = json.loads(body)
+                answer = f"echo:{payload['messages'][1]['content'][:20]}"
+                response = json.dumps(
+                    {
+                        "choices": [{"message": {"content": answer}}],
+                        "usage": {"total_tokens": 1290},
+                    }
+                ).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(response)
             elif _Behavior.mode == "unauthorized":
                 self.send_response(401)
                 self.end_headers()
@@ -84,8 +97,17 @@ class ApiTests(unittest.TestCase):
         )
 
     def test_successful_call_returns_content(self):
-        answer = _api.chat_completion("sys", "hello world", config=self._config())
+        answer, usage = _api.chat_completion("sys", "hello world", config=self._config())
         self.assertTrue(answer.startswith("echo:"))
+
+    def test_no_usage_key_returns_empty_dict(self):
+        answer, usage = _api.chat_completion("sys", "hi", config=self._config())
+        self.assertEqual(usage, {})
+
+    def test_usage_surfaced_from_response(self):
+        _Behavior.mode = "with_usage"
+        answer, usage = _api.chat_completion("sys", "hi", config=self._config())
+        self.assertEqual(usage, {"total_tokens": 1290})
 
     def test_unauthorized_maps_to_clear_message_without_leaking_key(self):
         _Behavior.mode = "unauthorized"

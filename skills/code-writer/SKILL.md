@@ -58,6 +58,10 @@ After a `--target` write, **read the written file yourself** with a normal
 worker's output is not automatically trustworthy just because it was
 written to disk.
 
+Worker token spend from this call is recorded to the local stats ledger
+(see `/tokenshed:report`), attributed to the current session unless
+`TOKENSHED_SESSION` overrides it.
+
 ## Example
 
 ```

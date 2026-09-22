@@ -8,6 +8,15 @@ import json
 import os
 import sys
 
+sys.path.insert(
+    0,
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "scripts"),
+)
+try:
+    import _stats
+except Exception:  # pragma: no cover - fail open if the ledger module is missing/broken
+    _stats = None
+
 DEFAULT_MIN_LINES = 350
 BULK_READ_INVOCATION = (
     'python3 "$CLAUDE_PLUGIN_ROOT/scripts/bulk_read.py" '
@@ -151,3 +160,32 @@ def block_message(path: str, line_desc: str, threshold: int) -> str:
 
 def line_desc(count: int, capped: bool) -> str:
     return f"at least {count} lines" if capped else f"{count} lines"
+
+
+def stamp_session(sid) -> None:
+    """Best-effort session marker write; never raises."""
+    try:
+        _stats.stamp_session(sid)
+    except Exception:
+        pass
+
+
+def estimate_avoided_tokens(path) -> int:
+    try:
+        return _stats.estimate_tokens(os.path.getsize(path))
+    except (OSError, AttributeError):
+        return 0
+
+
+def record_block(path, script) -> None:
+    try:
+        size = os.path.getsize(path)
+        _stats.record(
+            kind="block",
+            script=script,
+            file=path,
+            bytes=size,
+            avoided_tokens=_stats.estimate_tokens(size),
+        )
+    except Exception:
+        pass

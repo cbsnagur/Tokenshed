@@ -105,6 +105,8 @@ All settings are environment variables.
 | `TOKENSHED_CACHE` | `on` | Set to `off` to disable the bulk-read answer cache |
 | `TOKENSHED_CACHE_DIR` | user cache dir | Where cached answers are stored |
 | `TOKENSHED_ALLOWLIST` | none | Comma-separated glob patterns always allowed regardless of size |
+| `TOKENSHED_STATS` | `on` | Set to `off` to disable recording to the token-savings ledger |
+| `TOKENSHED_SESSION` | current session, auto-detected | Override the session id used to attribute worker token spend |
 
 ### Per-project allow-list
 
@@ -143,6 +145,47 @@ bulk-read caches each answer on local disk, keyed on the question, the
 model, and a hash of every file's contents — so repeating a question about
 unchanged files costs nothing, and editing any file invalidates the cache
 entry automatically.
+
+## Token-savings report
+
+Run `/tokenshed:report` to see how many tokens Tokenshed has saved, for the
+current session and lifetime:
+
+```
+tokenshed report — tokens saved
+===============================
+Session abc-123 (current):
+  blocked reads              12
+  tokens avoided       ~360,000
+  worker tokens spent     9,100
+  tokens saved         ~350,900
+
+Lifetime totals:
+  blocked reads                47
+  tokens avoided       ~1,420,000
+  worker tokens spent      31,500
+  tokens saved         ~1,388,500
+```
+
+- **Tokens avoided** (marked `~`) is an *estimate*: file bytes ÷ 4 for every
+  whole-file read a hook blocked. Tokenshed has no access to Claude's real
+  tokenizer, so this reuses the project's standard ~4-characters-per-token
+  approximation — treat it as directionally correct, not exact.
+- **Worker tokens spent** is *exact*: the `usage.total_tokens` field the
+  worker API returns for each `bulk_read`/`code_write` call.
+- **Tokens saved** is avoided minus spent, so it inherits the same
+  estimate-vs-exact split.
+- Figures come from a local, append-only ledger, `stats.jsonl` in the same
+  cache directory as the bulk-read answer cache (`TOKENSHED_CACHE_DIR`, or
+  by default `%LOCALAPPDATA%\tokenshed\Cache` on Windows,
+  `~/Library/Caches/tokenshed` on macOS, `~/.cache/tokenshed` on Linux),
+  written by the hooks and worker scripts. Nothing is sent anywhere — the
+  same no-telemetry guarantee as the rest of Tokenshed. Set
+  `TOKENSHED_STATS=off` to stop recording, or `TOKENSHED_SESSION` to
+  override the session id events are attributed to (useful if you run
+  scripts outside a normal hook-driven session).
+- Filter with `python3 scripts/report.py --session <id>` for one session
+  only, or `--since YYYY-MM-DD` to drop older events.
 
 ## Privacy and security
 

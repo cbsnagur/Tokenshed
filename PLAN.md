@@ -34,6 +34,7 @@ before packaging, packaging before benchmarking).
 | 1 | Hooks | M1: Hooks | done | `hooks/`, `evals/hooks/` |
 | 2 | Worker scripts | M2: Workers | done | `scripts/_api.py`, `scripts/_cache.py`, `scripts/bulk_read.py`, `scripts/code_write.py`, `evals/scripts/` |
 | 3 | Skills & packaging | M3: Skills and packaging | done | `skills/`, `commands/doctor.md`, `scripts/doctor.py`, `README.md` |
+| 3.1 | Token-savings report | v1.x item, pulled forward | done | `scripts/_stats.py`, `scripts/report.py`, `commands/report.md` |
 | 4 | Benchmarks & beta | M4: Benchmarks and beta | scaffold done, real run pending | `evals/benchmarks/` (see its README for what's still manual) |
 | 5 | v1.0 release | v1.0 release | pending | tag + marketplace listing, after a real Phase 4 run |
 
@@ -108,9 +109,6 @@ tokenshed/
   of delegating.
 - **Adapters for Codex and Cursor.** Reuse the Phase 2 scripts (they're
   agent-agnostic CLIs) behind each tool's own hook/extension mechanism.
-- **A per-session savings report.** Tokens avoided and worker cost per
-  session, built on top of the Phase 4 benchmark instrumentation. Plain
-  text/CLI — the PRD excludes any UI or dashboard from v1.
 
 **Explicitly not planned** (PRD non-goals): support for agents other than
 Claude Code beyond the v1.x item above; an MCP server; hosting or reselling

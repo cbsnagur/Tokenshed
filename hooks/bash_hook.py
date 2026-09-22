@@ -21,7 +21,9 @@ from _common import (  # noqa: E402
     line_desc,
     read_stdin_json,
     read_threshold,
+    record_block,
     resolve_path,
+    stamp_session,
 )
 
 READ_COMMANDS = {"cat", "less", "more"}
@@ -104,6 +106,7 @@ def check_large_file(path: str, cwd: str, threshold: int):
     count, capped = count_lines(resolved, threshold)
     if not capped and count <= threshold:
         return None
+    record_block(resolved, "bash")
     return block_message(resolved, line_desc(count, capped), threshold)
 
 
@@ -154,6 +157,7 @@ def evaluate(data: dict):
                         continue
                     if is_allowlisted(resolved, cwd):
                         continue
+                    record_block(resolved, "bash")
                     return block_message(
                         resolved,
                         f"requested {effective} lines via {cmd_name}",
@@ -165,6 +169,7 @@ def evaluate(data: dict):
 
 def main():
     data = read_stdin_json()
+    stamp_session(data.get("session_id"))
     reason = evaluate(data)
     if reason is None:
         emit_allow()
