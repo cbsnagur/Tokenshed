@@ -6,7 +6,7 @@ Thanks for considering it. This project is small on purpose — see
 ## Getting started
 
 ```
-git clone https://github.com/<owner>/tokenshed.git
+git clone https://github.com/cbsnagur/tokenshed.git
 cd tokenshed
 python3 -m unittest discover -s evals -p "test_*.py"
 ```

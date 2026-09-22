@@ -17,7 +17,7 @@ context — never the file itself.
 ## Install
 
 ```
-claude plugin marketplace add <owner>/tokenshed
+claude plugin marketplace add cbsnagur/tokenshed
 claude plugin install tokenshed@tokenshed
 ```
 
