@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import shutil
 import sys
@@ -45,6 +46,14 @@ class BulkReadTests(unittest.TestCase):
             code = exc.code
         return code, stdout.getvalue(), stderr.getvalue()
 
+    def _worker_events(self):
+        ledger = os.path.join(self.cache_dir, "stats.jsonl")
+        if not os.path.isfile(ledger):
+            return []
+        with open(ledger, encoding="utf-8") as fh:
+            events = [json.loads(line) for line in fh if line.strip()]
+        return [e for e in events if e.get("kind") == "worker"]
+
     def test_missing_file_errors_clearly(self):
         code, out, err = self._run(
             ["--question", "what is this", "--paths", "/no/such/file.py"]
@@ -61,7 +70,9 @@ class BulkReadTests(unittest.TestCase):
 
     def test_calls_worker_and_prints_only_answer(self):
         path = self._write("a.py", "def f():\n    return 1\n")
-        with mock.patch.object(bulk_read, "chat_completion", return_value="- does X") as m:
+        with mock.patch.object(
+            bulk_read, "chat_completion", return_value=("- does X", {"total_tokens": 1290})
+        ) as m:
             code, out, err = self._run(["--question", "what does it do", "--paths", path])
         self.assertEqual(code, 0)
         self.assertEqual(out.strip(), "- does X")
@@ -72,9 +83,23 @@ class BulkReadTests(unittest.TestCase):
         self.assertIn(f'<file path="{path}">', user_prompt)
         self.assertIn("1: def f():", user_prompt)
 
+    def test_worker_event_recorded_on_real_call(self):
+        path = self._write("a.py", "def f():\n    return 1\n")
+        with mock.patch.object(
+            bulk_read, "chat_completion", return_value=("- does X", {"total_tokens": 1290})
+        ):
+            self._run(["--question", "what does it do", "--paths", path])
+        events = self._worker_events()
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["script"], "bulk_read")
+        self.assertEqual(events[0]["model"], "test-model")
+        self.assertEqual(events[0]["spent_tokens"], 1290)
+
     def test_repeat_question_hits_cache_without_calling_worker(self):
         path = self._write("a.py", "def f():\n    return 1\n")
-        with mock.patch.object(bulk_read, "chat_completion", return_value="- does X") as m:
+        with mock.patch.object(
+            bulk_read, "chat_completion", return_value=("- does X", {"total_tokens": 1290})
+        ) as m:
             self._run(["--question", "what does it do", "--paths", path])
             code, out, err = self._run(["--question", "what does it do", "--paths", path])
         self.assertEqual(code, 0)
@@ -82,9 +107,21 @@ class BulkReadTests(unittest.TestCase):
         self.assertIn("does X", out)
         m.assert_called_once()  # second call was served from cache
 
+    def test_no_worker_event_on_cache_hit(self):
+        path = self._write("a.py", "def f():\n    return 1\n")
+        with mock.patch.object(
+            bulk_read, "chat_completion", return_value=("- does X", {"total_tokens": 1290})
+        ):
+            self._run(["--question", "what does it do", "--paths", path])
+            self._run(["--question", "what does it do", "--paths", path])
+        events = self._worker_events()
+        self.assertEqual(len(events), 1)  # only the first (real) call recorded
+
     def test_no_cache_flag_forces_fresh_call(self):
         path = self._write("a.py", "def f():\n    return 1\n")
-        with mock.patch.object(bulk_read, "chat_completion", return_value="- does X") as m:
+        with mock.patch.object(
+            bulk_read, "chat_completion", return_value=("- does X", {"total_tokens": 1290})
+        ) as m:
             self._run(["--question", "what does it do", "--paths", path])
             code, out, err = self._run(
                 ["--question", "what does it do", "--paths", path, "--no-cache"]
@@ -95,10 +132,14 @@ class BulkReadTests(unittest.TestCase):
 
     def test_editing_file_invalidates_cache(self):
         path = self._write("a.py", "def f():\n    return 1\n")
-        with mock.patch.object(bulk_read, "chat_completion", return_value="- v1") as m:
+        with mock.patch.object(
+            bulk_read, "chat_completion", return_value=("- v1", {"total_tokens": 100})
+        ) as m:
             self._run(["--question", "q", "--paths", path])
         self._write("a.py", "def f():\n    return 2\n")
-        with mock.patch.object(bulk_read, "chat_completion", return_value="- v2") as m:
+        with mock.patch.object(
+            bulk_read, "chat_completion", return_value=("- v2", {"total_tokens": 100})
+        ) as m:
             code, out, err = self._run(["--question", "q", "--paths", path])
         self.assertNotIn("(cached)", out)
         self.assertIn("v2", out)

@@ -53,6 +53,10 @@ this exact question against these exact file contents, the output is
 prefixed with `(cached)` and no network call is made — you don't need to
 do anything differently in that case, just read the answer.
 
+Worker token spend from this call is recorded to the local stats ledger
+(see `/tokenshed:report`), attributed to the current session unless
+`TOKENSHED_SESSION` overrides it.
+
 ## Example
 
 ```

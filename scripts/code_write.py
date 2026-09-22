@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from _api import ApiError, chat_completion, get_config  # noqa: E402
 from _files import read_text, wrap_file  # noqa: E402
+from _stats import record  # noqa: E402
 
 SYSTEM_PROMPT = (
     "You are a code-generation assistant helping a coding agent produce "
@@ -72,9 +73,16 @@ def main(argv=None):
     )
 
     try:
-        raw = chat_completion(SYSTEM_PROMPT, user_prompt, config=config)
+        raw, usage = chat_completion(SYSTEM_PROMPT, user_prompt, config=config)
     except ApiError as exc:
         fail(str(exc))
+
+    record(
+        kind="worker",
+        script="code_write",
+        model=config.model,
+        spent_tokens=usage.get("total_tokens", 0),
+    )
 
     code = strip_code_fences(raw)
 
