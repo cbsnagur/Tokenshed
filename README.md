@@ -187,6 +187,25 @@ Lifetime totals:
 - Filter with `python3 scripts/report.py --session <id>` for one session
   only, or `--since YYYY-MM-DD` to drop older events.
 
+### Dashboard
+
+For a per-day chart of the same ledger, run:
+
+```
+python3 scripts/serve_dashboard.py
+```
+
+It serves `scripts/stats_dashboard.html` at `http://127.0.0.1:8765/`, opens
+it in your browser, and re-reads the ledger every 30 seconds. `--port`
+picks another port; `--no-browser` skips opening a tab. The server binds to
+localhost only and serves just the page and `stats.jsonl`. Stop it with
+Ctrl+C.
+
+You can also open `stats_dashboard.html` directly and pick or drop
+`stats.jsonl`, but that is a one-off snapshot: browsers won't re-read a
+file under the cache directory (AppData on Windows) from a `file://` page,
+so only the served mode stays live.
+
 ## Privacy and security
 
 - Files go only to the endpoint in `TOKENSHED_API_BASE`. No telemetry,
