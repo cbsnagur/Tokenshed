@@ -58,10 +58,11 @@ def get_config() -> Config:
     return Config(model, api_base, api_key, timeout, temperature)
 
 
-def chat_completion(system_prompt: str, user_prompt: str, config: Config = None) -> str:
-    """POST a single chat completion request. Raises ApiError with a
-    short, sanitized message on any failure — never the raw exception,
-    never the API key."""
+def chat_completion(system_prompt: str, user_prompt: str, config: Config = None) -> tuple:
+    """POST a single chat completion request. Returns (content, usage),
+    where usage is the response's "usage" dict (empty dict if absent).
+    Raises ApiError with a short, sanitized message on any failure —
+    never the raw exception, never the API key."""
     config = config or get_config()
 
     body = {
@@ -104,7 +105,8 @@ def chat_completion(system_prompt: str, user_prompt: str, config: Config = None)
 
     try:
         payload = json.loads(raw)
-        return payload["choices"][0]["message"]["content"]
+        content = payload["choices"][0]["message"]["content"]
+        return content, (payload.get("usage") or {})
     except (KeyError, IndexError, TypeError, json.JSONDecodeError):
         raise ApiError(
             f"worker API at {config.api_base} returned an unexpected response shape"

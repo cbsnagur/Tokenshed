@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tokenshed Savings</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f4f4f2; --surface-1: #fcfcfb; --border: #e2e1dc; --grid: #ebeae6;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
+    --series-1: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2e2c; --grid: #262624;
+      --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+      --series-1: #3987e5;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2e2c; --grid: #262624;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --series-1: #3987e5;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--surface-0); color: var(--text-primary);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 12px; }
+  .sub { color: var(--text-secondary); margin: 0 0 20px; }
+  code { font-size: 12px; background: var(--surface-1); border: 1px solid var(--border);
+         padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  #drop { border-style: dashed; text-align: center; padding: 28px 16px; color: var(--text-secondary); }
+  #drop.over { border-color: var(--series-1); }
+  #drop label { color: var(--series-1); cursor: pointer; text-decoration: underline; }
+  #drop input { display: none; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .tile .k { color: var(--text-secondary); font-size: 12px; }
+  .tile .v { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  #chart { position: relative; }
+  #chart svg { display: block; width: 100%; height: 300px; overflow: visible; }
+  .axis text { fill: var(--text-muted); font-size: 11px; }
+  .grid line { stroke: var(--grid); }
+  .base { stroke: var(--border); }
+  .bar { fill: var(--series-1); }
+  .hit { fill: transparent; cursor: default; }
+  .hit:hover + .bar, .bar.on { opacity: .8; }
+  .lbl { fill: var(--text-primary); font-size: 11px; font-weight: 600; }
+  #tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border);
+         border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+         white-space: nowrap; display: none; }
+  #tip b { display: block; margin-bottom: 2px; }
+  #tip span { color: var(--text-secondary); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--grid); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
+  .scroll { overflow-x: auto; }
+  .note { color: var(--text-muted); font-size: 12px; margin-top: 8px; }
+  #out { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tokenshed token savings</h1>
+  <p class="sub">Tokens saved per day, from the local stats ledger. Saved = avoided (blocked reads, ~bytes/4) − worker tokens spent.</p>
+
+  <div id="drop" class="card">
+    Drop <code>stats.jsonl</code> here or <label>choose the file<input type="file" id="file" accept=".jsonl,.json,.txt"></label><br>
+    <span class="note">Usually at <code>%LOCALAPPDATA%\tokenshed\Cache\stats.jsonl</code>. Read in your browser only; nothing is uploaded. For a view that refreshes every 30s, run <code>python scripts/serve_dashboard.py</code> instead.</span>
+  </div>
+
+  <div id="out">
+    <div class="tiles" id="tiles"></div>
+    <div class="card">
+      <h2>Tokens saved per day</h2>
+      <div id="chart"><div id="tip"></div></div>
+    </div>
+    <div class="card">
+      <h2>By day</h2>
+      <div class="scroll"><table id="table"></table></div>
+      <p class="note" id="skipped"></p>
+    </div>
+  </div>
+</main>
+<script>
+const fmt = n => n.toLocaleString();
+const num = v => (typeof v === "number" && isFinite(v)) ? v : 0;
+// local-time day key, matching how report.py's --since treats dates
+const dayKey = ts => { const d = new Date(ts * 1000); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+
+function parse(text) {
+  const events = []; let bad = 0;
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    try { const e = JSON.parse(line); if (e && typeof e === "object" && num(e.ts)) events.push(e); else bad++; }
+    catch { bad++; }
+  }
+  return { events, bad };
+}
+
+function byDay(events) {
+  const days = new Map();
+  for (const e of events) {
+    const k = dayKey(e.ts);
+    const d = days.get(k) || { day: k, blocks: 0, avoided: 0, spent: 0, sessions: new Set() };
+    if (e.kind === "block") d.blocks++;
+    d.avoided += num(e.avoided_tokens);
+    d.spent += num(e.spent_tokens);
+    d.sessions.add(e.session || "unknown");
+    days.set(k, d);
+  }
+  // fill gaps so the time axis is continuous
+  const keys = [...days.keys()].sort();
+  const out = [];
+  if (!keys.length) return out;
+  for (let t = new Date(keys[0] + "T00:00"), end = new Date(keys.at(-1) + "T00:00"); t <= end; t.setDate(t.getDate() + 1)) {
+    const k = dayKey(t / 1000);
+    const d = days.get(k) || { day: k, blocks: 0, avoided: 0, spent: 0, sessions: new Set() };
+    d.saved = d.avoided - d.spent;
+    out.push(d);
+  }
+  return out;
+}
+
+function niceMax(v) {
+  if (v <= 0) return 1;
+  const p = 10 ** Math.floor(Math.log10(v)), m = v / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
+}
+const short = n => Math.abs(n) >= 1e6 ? (n/1e6).toFixed(1).replace(/\.0$/,"") + "M" : Math.abs(n) >= 1e3 ? (n/1e3).toFixed(1).replace(/\.0$/,"") + "k" : String(n);
+
+function chart(days) {
+  const box = document.getElementById("chart"), tip = document.getElementById("tip");
+  box.querySelector("svg")?.remove();
+  const W = box.clientWidth || 800, H = 300, L = 48, R = 8, T = 20, B = 28;
+  const iw = W - L - R, ih = H - T - B;
+  const lo = Math.min(0, ...days.map(d => d.saved)), hi = niceMax(Math.max(0, ...days.map(d => d.saved)));
+  const min = lo < 0 ? -niceMax(-lo) : 0;
+  const y = v => T + ih - (v - min) / (hi - min) * ih;
+  const slot = iw / days.length, bw = Math.max(1, Math.min(40, slot - 2));
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Bar chart of tokens saved per day; see the table below for values");
+  let s = `<g class="grid axis">`;
+  const step = (hi - min) / 4;
+  for (let i = 0; i <= 4; i++) { const v = min + step * i;
+    s += `<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${short(Math.round(v))}</text>`; }
+  s += `</g><line class="base" x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}"/><g class="axis">`;
+  const every = Math.ceil(days.length / Math.max(1, Math.floor(iw / 64)));
+  days.forEach((d, i) => { if (i % every === 0) s += `<text x="${L + slot*i + slot/2}" y="${H-8}" text-anchor="middle">${d.day.slice(5)}</text>`; });
+  s += `</g><g>`;
+  const peak = days.reduce((a, b) => b.saved > a.saved ? b : a, days[0]);
+  days.forEach((d, i) => {
+    const x = L + slot*i + (slot - bw)/2, y0 = y(0), y1 = y(d.saved), h = Math.abs(y1 - y0);
+    const r = Math.min(4, bw/2, h);
+    // rounded data-end, square at the baseline
+    const top = Math.min(y0, y1), up = d.saved >= 0;
+    const path = h < 0.5 ? "" : up
+      ? `M${x},${y0}V${top+r}Q${x},${top} ${x+r},${top}H${x+bw-r}Q${x+bw},${top} ${x+bw},${top+r}V${y0}Z`
+      : `M${x},${y0}V${y1-r}Q${x},${y1} ${x+r},${y1}H${x+bw-r}Q${x+bw},${y1} ${x+bw},${y1-r}V${y0}Z`;
+    s += `<rect class="hit" data-i="${i}" x="${L + slot*i}" y="${T}" width="${slot}" height="${ih}"/><path class="bar" d="${path}"/>`;
+    if (d === peak && d.saved > 0) s += `<text class="lbl" x="${x + bw/2}" y="${top - 6}" text-anchor="middle">${short(d.saved)}</text>`;
+  });
+  svg.innerHTML = s + `</g>`;
+  box.prepend(svg);
+
+  svg.addEventListener("mousemove", ev => {
+    const i = ev.target.dataset?.i; if (i === undefined) { tip.style.display = "none"; return; }
+    const d = days[i];
+    tip.innerHTML = `<b>${d.day}</b>${fmt(d.saved)} <span>saved</span><br>${fmt(d.avoided)} <span>avoided</span> · ${fmt(d.spent)} <span>spent</span><br>${d.blocks} <span>blocked reads</span> · ${d.sessions.size} <span>sessions</span>`;
+    tip.style.display = "block";
+    const bx = box.getBoundingClientRect(), px = ev.clientX - bx.left;
+    tip.style.left = Math.min(px + 12, bx.width - tip.offsetWidth) + "px";
+    tip.style.top = (ev.clientY - bx.top - tip.offsetHeight - 12) + "px";
+  });
+  svg.addEventListener("mouseleave", () => tip.style.display = "none");
+}
+
+function render(text) {
+  const { events, bad } = parse(text);
+  const days = byDay(events);
+  if (!days.length) { alert("No valid events found in that file."); return; }
+  const sum = k => days.reduce((a, d) => a + d[k], 0);
+  const sessions = new Set(events.map(e => e.session || "unknown"));
+  const active = days.filter(d => d.avoided || d.spent || d.blocks).length;
+  document.getElementById("tiles").innerHTML = [
+    ["Tokens saved", "~" + fmt(sum("saved"))],
+    ["Tokens avoided", "~" + fmt(sum("avoided"))],
+    ["Worker tokens spent", fmt(sum("spent"))],
+    ["Blocked reads", fmt(sum("blocks"))],
+    ["Active days", `${active} / ${days.length}`],
+    ["Sessions", fmt(sessions.size)],
+  ].map(([k, v]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+  document.getElementById("table").innerHTML =
+    `<tr><th>Day</th><th>Blocked reads</th><th>Avoided</th><th>Spent</th><th>Saved</th><th>Sessions</th></tr>` +
+    [...days].reverse().map(d => `<tr><td>${d.day}</td><td>${d.blocks}</td><td>${fmt(d.avoided)}</td><td>${fmt(d.spent)}</td><td>${fmt(d.saved)}</td><td>${d.sessions.size}</td></tr>`).join("");
+  document.getElementById("skipped").textContent = bad ? `${bad} malformed line(s) skipped.` : "";
+  document.getElementById("out").style.display = "block";
+  chart(days);
+  window.onresize = () => chart(days);
+}
+
+// src is the ledger URL when served by serve_dashboard.py (live), or a picked File.
+// ponytail: Chromium can't re-read a picked File once it changes on disk, so only the served mode stays live.
+const REFRESH_MS = 30000;
+let src;
+const text = s => typeof s === "string"
+  ? fetch(s, { cache: "no-store" }).then(r => r.ok ? r.text() : Promise.reject(r.status))
+  : s.text();
+const read = () => src && text(src).then(render).catch(() => {});
+const use = s => { if (s) { src = s; read(); } };
+setInterval(read, REFRESH_MS);
+if (location.protocol.startsWith("http")) use("stats.jsonl");
+
+document.getElementById("file").addEventListener("change", e => use(e.target.files[0]));
+const drop = document.getElementById("drop");
+["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => use(e.dataTransfer.files[0]));
+</script>
+</body>
+</html>

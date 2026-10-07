@@ -14,14 +14,34 @@ sys.path.insert(0, HOOKS_DIR)
 import read_hook  # noqa: E402
 
 
+def _read_ledger_events(base_dir):
+    """Walk the isolated cache dir for any *.jsonl ledger and return all
+    parsed events, without hardcoding the ledger's exact filename/subpath."""
+    events = []
+    for root, _, files in os.walk(base_dir):
+        for name in files:
+            if name.endswith(".jsonl"):
+                with open(os.path.join(root, name), "r", encoding="utf-8") as fh:
+                    for line in fh:
+                        line = line.strip()
+                        if line:
+                            events.append(json.loads(line))
+    return events
+
+
 class ReadHookEvaluateTests(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
+        self.stats_dir = tempfile.mkdtemp()
         os.environ.pop("TOKENSHED_MIN_LINES", None)
         os.environ.pop("TOKENSHED_ALLOWLIST", None)
+        os.environ.pop("TOKENSHED_STATS", None)
+        os.environ["TOKENSHED_CACHE_DIR"] = self.stats_dir
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
+        shutil.rmtree(self.stats_dir, ignore_errors=True)
+        os.environ.pop("TOKENSHED_CACHE_DIR", None)
 
     def _write(self, name, lines):
         path = os.path.join(self.tmpdir, name)
@@ -114,6 +134,25 @@ class ReadHookEvaluateTests(unittest.TestCase):
         elapsed_ms = (time.perf_counter() - start) * 1000
         self.assertLess(elapsed_ms, 100, f"read hook evaluate() took {elapsed_ms:.1f}ms")
 
+    def test_deny_records_block_event(self):
+        path = self._write("big.py", 500)
+        reason = read_hook.evaluate(self._data(path))
+        self.assertIsNotNone(reason)
+        events = _read_ledger_events(self.stats_dir)
+        self.assertEqual(len(events), 1, f"expected exactly one ledger event, got {events}")
+        event = events[0]
+        self.assertEqual(event["kind"], "block")
+        self.assertEqual(event["script"], "read")
+        self.assertEqual(event["file"], path)
+        self.assertEqual(event["bytes"], os.path.getsize(path))
+        self.assertEqual(event["avoided_tokens"], os.path.getsize(path) // 4)
+
+    def test_allow_records_no_event(self):
+        path = self._write("small.py", 10)
+        reason = read_hook.evaluate(self._data(path))
+        self.assertIsNone(reason)
+        self.assertEqual(_read_ledger_events(self.stats_dir), [])
+
 
 class ReadHookSubprocessTests(unittest.TestCase):
     """End-to-end checks of the real CLI contract: stdin JSON in,
@@ -122,17 +161,21 @@ class ReadHookSubprocessTests(unittest.TestCase):
 
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
+        self.stats_dir = tempfile.mkdtemp()
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
+        shutil.rmtree(self.stats_dir, ignore_errors=True)
 
     def _run(self, payload: str):
+        env = dict(os.environ, TOKENSHED_CACHE_DIR=self.stats_dir)
         return subprocess.run(
             [sys.executable, os.path.join(HOOKS_DIR, "read_hook.py")],
             input=payload,
             capture_output=True,
             text=True,
             timeout=10,
+            env=env,
         )
 
     def test_end_to_end_block(self):

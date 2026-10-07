@@ -21,7 +21,9 @@ from _common import (  # noqa: E402
     line_desc,
     read_stdin_json,
     read_threshold,
+    record_block,
     resolve_path,
+    stamp_session,
 )
 
 
@@ -62,11 +64,13 @@ def evaluate(data: dict):
         return None
 
     # R1 + R3: block, naming the file, its line count, and both alternatives.
+    record_block(path, "read")
     return block_message(path, line_desc(count, capped), threshold)
 
 
 def main():
     data = read_stdin_json()
+    stamp_session(data.get("session_id"))
     reason = evaluate(data)
     if reason is None:
         emit_allow()

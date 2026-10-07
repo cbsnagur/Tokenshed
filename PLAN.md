@@ -34,6 +34,7 @@ before packaging, packaging before benchmarking).
 | 1 | Hooks | M1: Hooks | done | `hooks/`, `evals/hooks/` |
 | 2 | Worker scripts | M2: Workers | done | `scripts/_api.py`, `scripts/_cache.py`, `scripts/bulk_read.py`, `scripts/code_write.py`, `evals/scripts/` |
 | 3 | Skills & packaging | M3: Skills and packaging | done | `skills/`, `commands/doctor.md`, `scripts/doctor.py`, `README.md` |
+| 3.1 | Token-savings report | v1.x item, pulled forward | done | `scripts/_stats.py`, `scripts/report.py`, `commands/report.md`, `scripts/serve_dashboard.py`, `scripts/stats_dashboard.html` |
 | 4 | Benchmarks & beta | M4: Benchmarks and beta | scaffold done, real run pending | `evals/benchmarks/` (see its README for what's still manual) |
 | 5 | v1.0 release | v1.0 release | pending | tag + marketplace listing, after a real Phase 4 run |
 
@@ -46,9 +47,9 @@ into the front of Week 1 alongside Phase 1).
 tokenshed/
 ├── .claude-plugin/        # Plugin and marketplace manifests
 ├── hooks/                 # Hook registration plus the Read and Bash hooks
-├── scripts/               # bulk-read, code-write, doctor, shared API/cache helpers
+├── scripts/               # bulk-read, code-write, doctor, report, dashboard, shared helpers
 ├── skills/                # bulk-reader and code-writer skill files
-├── commands/              # The /tokenshed:doctor command
+├── commands/              # The /tokenshed:doctor and /tokenshed:report commands
 ├── evals/                 # Hook, script, and benchmark test cases
 ├── README.md
 └── LICENSE                # MIT
@@ -108,12 +109,10 @@ tokenshed/
   of delegating.
 - **Adapters for Codex and Cursor.** Reuse the Phase 2 scripts (they're
   agent-agnostic CLIs) behind each tool's own hook/extension mechanism.
-- **A per-session savings report.** Tokens avoided and worker cost per
-  session, built on top of the Phase 4 benchmark instrumentation. Plain
-  text/CLI — the PRD excludes any UI or dashboard from v1.
 
 **Explicitly not planned** (PRD non-goals): support for agents other than
 Claude Code beyond the v1.x item above; an MCP server; hosting or reselling
 model access; delegating edits, debugging, or design decisions to the
-worker model (a permanent boundary, not a v1 limitation); a UI or
-dashboard.
+worker model (a permanent boundary, not a v1 limitation); a hosted UI or
+dashboard. (The localhost-only savings dashboard, `scripts/serve_dashboard.py`,
+is a read-only view of the local ledger, not a product UI.)

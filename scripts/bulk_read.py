@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _api import ApiError, chat_completion, get_config  # noqa: E402
 from _cache import cache_enabled, compute_key, default_cache_dir, load_entry, store_entry  # noqa: E402
 from _files import read_text, wrap_file  # noqa: E402
+from _stats import record  # noqa: E402
 
 PROMPT_VERSION = "v1"
 DEFAULT_MAX_BYTES = 1_500_000
@@ -102,9 +103,16 @@ def main(argv=None):
     )
 
     try:
-        answer = chat_completion(SYSTEM_PROMPT, user_prompt, config=config)
+        answer, usage = chat_completion(SYSTEM_PROMPT, user_prompt, config=config)
     except ApiError as exc:
         fail(str(exc))
+
+    record(
+        kind="worker",
+        script="bulk_read",
+        model=config.model,
+        spent_tokens=usage.get("total_tokens", 0),
+    )
 
     print(answer)
 
